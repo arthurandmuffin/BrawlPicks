@@ -1,0 +1,76 @@
+definitions:
+  api.Response:
+    properties:
+      code:
+        type: string
+      data: {}
+    type: object
+  models.BrawlerMapRanking:
+    properties:
+      adjusted_sr:
+        type: number
+      adjusted_wr:
+        type: number
+      brawler:
+        type: string
+      score:
+        type: number
+    type: object
+  models.MapRanking:
+    properties:
+      brawlers:
+        items:
+          $ref: '#/definitions/models.BrawlerMapRanking'
+        type: array
+      map_name:
+        type: string
+      mode:
+        type: string
+      starRateL:
+        type: number
+      starRateMean:
+        type: number
+      winRateK:
+        type: number
+      winRateMean:
+        type: number
+    type: object
+info:
+  contact: {}
+paths:
+  /map-rankings/{rank}/{mapName}:
+    get:
+      description: Returns the ranking of brawlers for a given map and rank
+      parameters:
+      - description: Rank
+        enum:
+        - d1
+        - m1
+        - m3
+        - l1
+        in: path
+        name: rank
+        required: true
+        type: string
+      - description: Map Name
+        in: path
+        name: mapName
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.MapRanking'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Response'
+      summary: Get map ranking for a specific map and rank
+      tags:
+      - map-rankings
+swagger: "2.0"
