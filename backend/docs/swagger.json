@@ -1,0 +1,116 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "contact": {}
+    },
+    "paths": {
+        "/map-rankings/{rank}/{mapName}": {
+            "get": {
+                "description": "Returns the ranking of brawlers for a given map and rank",
+                "tags": [
+                    "map-rankings"
+                ],
+                "summary": "Get map ranking for a specific map and rank",
+                "parameters": [
+                    {
+                        "enum": [
+                            "d1",
+                            "m1",
+                            "m3",
+                            "l1"
+                        ],
+                        "type": "string",
+                        "description": "Rank",
+                        "name": "rank",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Map Name",
+                        "name": "mapName",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.MapRanking"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Response"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "api.Response": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "data": {}
+            }
+        },
+        "models.BrawlerMapRanking": {
+            "type": "object",
+            "properties": {
+                "adjusted_sr": {
+                    "type": "number"
+                },
+                "adjusted_wr": {
+                    "type": "number"
+                },
+                "brawler": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "number"
+                }
+            }
+        },
+        "models.MapRanking": {
+            "type": "object",
+            "properties": {
+                "brawlers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.BrawlerMapRanking"
+                    }
+                },
+                "map_name": {
+                    "type": "string"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "starRateL": {
+                    "type": "number"
+                },
+                "starRateMean": {
+                    "type": "number"
+                },
+                "winRateK": {
+                    "type": "number"
+                },
+                "winRateMean": {
+                    "type": "number"
+                }
+            }
+        }
+    }
+}
