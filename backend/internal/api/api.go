@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/gin-gonic/gin"
+
+	"BrawlPicks/scheduler"
 )
 
 type Api struct {
@@ -15,6 +17,7 @@ type Api struct {
 	debug          bool
 	baseRoutes     []Route
 	prefixedRoutes []Route
+	schedulers     []scheduler.Scheduler
 }
 
 func NewApi(
@@ -25,6 +28,7 @@ func NewApi(
 	debug bool,
 	baseRoutes []Route,
 	prefixedRoutes []Route,
+	schedulers []scheduler.Scheduler,
 ) *Api {
 	return &Api{
 		make(chan error),
@@ -35,6 +39,7 @@ func NewApi(
 		debug,
 		baseRoutes,
 		prefixedRoutes,
+		schedulers,
 	}
 }
 
@@ -55,6 +60,10 @@ func (a *Api) Run() {
 	group := engine.Group(a.prefix)
 	for _, route := range a.prefixedRoutes {
 		route.Setup(group)
+	}
+
+	for _, scheduler := range a.schedulers {
+		go scheduler.Start(a.ctx)
 	}
 
 	go func() {

@@ -13,6 +13,7 @@ import (
 	"BrawlPicks/internal/env"
 	"BrawlPicks/repositories"
 	"BrawlPicks/routes"
+	"BrawlPicks/scheduler"
 	"BrawlPicks/services"
 	"BrawlPicks/wire/providers"
 )
@@ -27,7 +28,8 @@ func InitializeApp(envEnv *env.Env) (*app.App, error) {
 	mapRankingDataService := services.NewMapRankingDataService(envEnv, client, mapRankingRepository)
 	mapRankingController := controllers.NewMapRankingController(mapRankingDataService)
 	mapRankingRoute := routes.NewMapRankingRoute(mapRankingController)
-	api := providers.NewApi(envEnv, context, swaggerRoute, mapRankingRoute)
+	mapRankingScheduler := scheduler.NewMapRankingScheduler(mapRankingDataService)
+	api := providers.NewApi(envEnv, context, swaggerRoute, mapRankingRoute, mapRankingScheduler)
 	appApp := app.NewApp(api)
 	return appApp, nil
 }
