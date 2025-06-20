@@ -6,6 +6,7 @@ import (
 	"BrawlPicks/internal/env"
 	"BrawlPicks/repositories"
 	"BrawlPicks/routes"
+	"BrawlPicks/scheduler"
 	"BrawlPicks/services"
 	"context"
 
@@ -20,15 +21,17 @@ var ApiSet = wire.NewSet(
 	MapRankingControllerSet,
 	MapRankingServiceSet,
 	wire.Bind(new(services.MapRankingDataServiceInterface), new(*services.MapRankingDataService)),
-	wire.Bind(new(repositories.MapRankingRepositoryInterface), new(*repositories.MapRankingRepository)),
 	MapRankingRepositorySet,
+	wire.Bind(new(repositories.MapRankingRepositoryInterface), new(*repositories.MapRankingRepository)),
+	MapRankingSchedulerSet,
 )
 
 func NewApi(
 	e *env.Env,
 	ctx context.Context,
 	swagger *routes.SwaggerRoute,
-	mapRanking *routes.MapRankingRoute,
+	mapRankingRoute *routes.MapRankingRoute,
+	mapRankingScheduler *scheduler.MapRankingScheduler,
 ) *api.Api {
 	return api.NewApi(
 		ctx,
@@ -40,7 +43,10 @@ func NewApi(
 			swagger,
 		},
 		[]api.Route{
-			mapRanking,
+			mapRankingRoute,
+		},
+		[]scheduler.Scheduler{
+			mapRankingScheduler,
 		},
 	)
 }
