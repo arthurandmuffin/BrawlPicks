@@ -10,10 +10,20 @@ import (
 	"github.com/google/wire"
 )
 
-func InitializeHandler() *handlers.Handler {
-	panic(wire.Build(
-		repositories.NewRepository,
-		services.NewService,
-		handlers.NewHandler,
-	))
+func InitializeBrawlStarsHandler(apiKey string) *handlers.BrawlStarsHandler {
+	wire.Build(
+		repositories.NewBrawlStarsRepository,
+		services.NewBrawlStarsService,
+		handlers.NewBrawlStarsHandler,
+	)
+	return nil
+}
+
+func InitializePLHandler() *handlers.PLHandler {
+	wire.Build(
+		repositories.NewPLRepository,
+		services.NewPLService,
+		handlers.NewPLHandler,
+	)
+	return nil
 }

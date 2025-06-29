@@ -14,9 +14,16 @@ import (
 
 // Injectors from wire.go:
 
-func InitializeHandler() *handlers.Handler {
-	repository := repositories.NewRepository()
-	service := services.NewService(repository)
-	handler := handlers.NewHandler(service)
-	return handler
+func InitializeBrawlStarsHandler(apiKey string) *handlers.BrawlStarsHandler {
+	brawlStarsRepository := repositories.NewBrawlStarsRepository(apiKey)
+	brawlStarsService := services.NewBrawlStarsService(brawlStarsRepository)
+	brawlStarsHandler := handlers.NewBrawlStarsHandler(brawlStarsService)
+	return brawlStarsHandler
+}
+
+func InitializePLHandler() *handlers.PLHandler {
+	plRepository := repositories.NewPLRepository()
+	plService := services.NewPLService(plRepository)
+	plHandler := handlers.NewPLHandler(plService)
+	return plHandler
 }
