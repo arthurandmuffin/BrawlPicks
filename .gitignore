@@ -2,3 +2,4 @@ raw/
 processed/
 *.yml
 *.txt
+.DS_Store

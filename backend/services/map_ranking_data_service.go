@@ -10,6 +10,9 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"sync"
+
+	"maps"
 
 	"github.com/sirupsen/logrus"
 )
@@ -28,6 +31,7 @@ type MapRankingDataService struct {
 	rMap                   repositories.MapRankingRepositoryInterface
 	mapRankings            map[models.Rank][]*models.MapRanking
 	mapRankingsinitialized bool
+	mu                     sync.RWMutex
 }
 
 func NewMapRankingDataService(e *env.Env, client *http.Client, rMap repositories.MapRankingRepositoryInterface) *MapRankingDataService {
@@ -49,6 +53,8 @@ func (s *MapRankingDataService) InitMapRankings() (err error) {
 		return
 	}
 
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	for _, rank := range models.Ranks() {
 		rankings, err := s.rMap.LoadMapRankings(rank)
 		if err != nil {
@@ -89,6 +95,10 @@ func (s *MapRankingDataService) RefreshRankings(force bool) (updated bool, err e
 		}
 	}
 
+	s.mu.Lock()
+	maps.Copy(s.mapRankings, newMapRankingData)
+	s.mu.Unlock()
+
 	err = s.rMap.UpdateLastUpdatedTime(newTimeStamp)
 	if err != nil {
 		return
@@ -115,6 +125,8 @@ func (s *MapRankingDataService) GetMapRankings(rank models.Rank, mapNames []stri
 }
 
 func (s *MapRankingDataService) getMapRanking(rank models.Rank, mapName string) (ranking *models.MapRanking, err error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	for _, mapRanking := range s.mapRankings[rank] {
 		if mapRanking.Name == mapName {
 			return mapRanking, nil
