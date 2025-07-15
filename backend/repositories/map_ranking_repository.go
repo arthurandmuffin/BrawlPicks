@@ -36,11 +36,6 @@ func NewMapRankingRepository(e *env.Env) *MapRankingRepository {
 	}
 }
 
-func ensureDir(filePath string) error {
-	dir := filepath.Dir(filePath)
-	return os.MkdirAll(dir, 0755)
-}
-
 func (r *MapRankingRepository) NewRawMapData(rank models.Rank, data []*models.MapData) (err error) {
 	var (
 		filepath = r.e.Data.RawMapData + string(rank) + variables.JsonExtension
@@ -307,4 +302,9 @@ func (r *MapRankingRepository) KnownMapName(mapName string) (known bool, err err
 		return true, nil
 	}
 	return false, nil
+}
+
+func ensureDir(filePath string) error {
+	dir := filepath.Dir(filePath)
+	return os.MkdirAll(dir, 0755)
 }
