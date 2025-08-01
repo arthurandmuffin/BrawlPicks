@@ -1,13 +1,15 @@
 package providers
 
 import (
-	"BrawlPicks/controllers"
-	"BrawlPicks/repositories"
-	"BrawlPicks/routes"
-	"BrawlPicks/services"
 	"net/http"
 
 	"github.com/google/wire"
+
+	"BrawlPicks/controllers"
+	ahttp "BrawlPicks/internal/api/http"
+	"BrawlPicks/repositories"
+	"BrawlPicks/routes"
+	"BrawlPicks/services"
 )
 
 var MapRankingRouteSet = wire.NewSet(
@@ -27,6 +29,6 @@ var MapRankingRepositorySet = wire.NewSet(
 	repositories.NewMapRankingRepository,
 )
 
-func NewHttpClient() *http.Client {
-	return &http.Client{}
+func NewHttpClient() *ahttp.Client {
+	return ahttp.NewClient(&http.Client{})
 }

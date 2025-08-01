@@ -1,40 +1,40 @@
 package services
 
 import (
+	"fmt"
+	"maps"
+	"math"
+	"net/http"
+	"sync"
+
+	"github.com/sirupsen/logrus"
+
+	ahttp "BrawlPicks/internal/api/http"
 	"BrawlPicks/internal/env"
 	"BrawlPicks/internal/stats"
 	"BrawlPicks/models"
 	"BrawlPicks/repositories"
 	"BrawlPicks/services/upstream"
-	"encoding/json"
-	"fmt"
-	"math"
-	"net/http"
-	"sync"
-
-	"maps"
-
-	"github.com/sirupsen/logrus"
 )
 
 type MapRankingDataServiceInterface interface {
 	InitMapRankings() (err error)
 	RefreshRankings(force bool) (updated bool, err error)
 	GetMapRankings(rank models.Rank, mapNames []string) (rankings []*models.MapRanking, err error)
-	NewDataAvailable() (newData bool, err error, newTime int)
+	NewDataAvailable() (newData bool, newTime int, err error)
 	FetchRawMapData(rank models.Rank) (data []*models.MapData, err error)
 }
 
 type MapRankingDataService struct {
 	e                      *env.Env
-	client                 *http.Client
+	client                 *ahttp.Client
 	rMap                   repositories.MapRankingRepositoryInterface
 	mapRankings            map[models.Rank][]*models.MapRanking
 	mapRankingsinitialized bool
 	mu                     sync.RWMutex
 }
 
-func NewMapRankingDataService(e *env.Env, client *http.Client, rMap repositories.MapRankingRepositoryInterface) *MapRankingDataService {
+func NewMapRankingDataService(e *env.Env, client *ahttp.Client, rMap repositories.MapRankingRepositoryInterface) *MapRankingDataService {
 	service := &MapRankingDataService{
 		e:                      e,
 		client:                 client,
@@ -68,7 +68,7 @@ func (s *MapRankingDataService) InitMapRankings() (err error) {
 }
 
 func (s *MapRankingDataService) RefreshRankings(force bool) (updated bool, err error) {
-	newDataAvailable, err, newTimeStamp := s.NewDataAvailable()
+	newDataAvailable, newTimeStamp, err := s.NewDataAvailable()
 	if err != nil {
 		return
 	}
@@ -196,20 +196,11 @@ func (s *MapRankingDataService) fetchNewRawMapData() (mapData map[models.Rank][]
 		if err != nil {
 			return nil, err
 		}
-		resp, err := s.client.Do(req)
-		if err != nil {
+		tmp := new(upstream.RawMapDataResponse)
+		if err := s.client.Do(req, tmp); err != nil {
 			return nil, err
 		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("unexpected status code %d for rank %s", resp.StatusCode, rank)
-		}
-
-		tmp := make(upstream.RawMapDataResponse)
-		if err := json.NewDecoder(resp.Body).Decode(&tmp); err != nil {
-			return nil, err
-		}
-		rawData[rank] = &tmp
+		rawData[rank] = tmp
 	}
 
 	for rank, data := range rawData {
@@ -240,7 +231,7 @@ func (s *MapRankingDataService) fetchNewRawMapData() (mapData map[models.Rank][]
 	return mapData, nil
 }
 
-func (s *MapRankingDataService) NewDataAvailable() (newData bool, err error, newTime int) {
+func (s *MapRankingDataService) NewDataAvailable() (newData bool, newTime int, err error) {
 	previousUpdated, err := s.fetchLastUpdatedTime()
 	if err != nil {
 		return
@@ -249,7 +240,7 @@ func (s *MapRankingDataService) NewDataAvailable() (newData bool, err error, new
 	if err != nil {
 		return
 	}
-	return newDataTimestamp > previousUpdated, nil, newDataTimestamp
+	return newDataTimestamp > previousUpdated, newDataTimestamp, nil
 }
 
 func (s *MapRankingDataService) FetchRawMapData(rank models.Rank) (data []*models.MapData, err error) {
@@ -264,12 +255,8 @@ func (s *MapRankingDataService) fetchNewDataTimestamp() (unixTime int, err error
 	if err != nil {
 		return -1, err
 	}
-	resp, err := s.client.Do(req)
-	if err != nil {
+	if err = s.client.Do(req, lastUpdated); err != nil {
 		return
-	}
-	if err := json.NewDecoder(resp.Body).Decode(lastUpdated); err != nil {
-		return -1, err
 	}
 
 	return lastUpdated.Time, nil

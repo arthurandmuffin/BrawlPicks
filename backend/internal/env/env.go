@@ -15,6 +15,8 @@ type Env struct {
 	Data       *Data       `yaml:"data"`
 	Upstream   *Upstream   `yaml:"upstream"`
 	MapRanking *MapRanking `yaml:"mapRanking"`
+	Redis      *Redis      `yaml:"redis"`
+	Brawl      *Brawl      `yaml:"brawl"`
 }
 
 type Api struct {
@@ -43,6 +45,32 @@ type MatchData struct {
 
 type MapRanking struct {
 	WinRateWeight float64 `yaml:"winRateWeight"`
+}
+
+type Redis struct {
+	Credentials      *RedisCredentials `yaml:"credentials"`
+	PlayerQueueName  string            `yaml:"queueName"`
+	PlayerQueueLimit int64             `yaml:"queueLimit"`
+	PlayerBFPrefix   string            `yaml:"playerBFPrefix"`
+	PlayerBFCapacity int64             `yaml:"playerBFCapacity"`
+	PlayerBFTTL      int64             `yaml:"playerBFTTL"`
+	GameBFPrefix     string            `yaml:"gameBFPrefix"`
+	GameBFCapacity   int64             `yaml:"gameBFCapacity"`
+	GameBFTTL        int64             `yaml:"gameBFTTL"`
+	BFErrorRate      float64           `yaml:"bfErrorRate"`
+}
+
+type RedisCredentials struct {
+	Address    string `yaml:"address"`
+	Password   string `yaml:"password"`
+	MasterName string `yaml:"masterName"`
+}
+
+type Brawl struct {
+	TopPlayersEndpoint string `yaml:"topPlayersEndpoint"`
+	BattleLogEndpoint  string `yaml:"battleLogEndpoint"`
+	Key                string `yaml:"key"`
+	QueueLimit         int    `yaml:"queueLimit"`
 }
 
 func Get(path string) (env *Env, err error) {
