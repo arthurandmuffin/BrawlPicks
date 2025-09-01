@@ -4,3 +4,4 @@ processed/
 *.txt
 .DS_Store
 .gocache
+data/

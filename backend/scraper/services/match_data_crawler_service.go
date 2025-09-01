@@ -136,7 +136,6 @@ func (s *MatchDataCrawlerService) jobFeeder(ctx context.Context, ioJobQueue chan
 			res, err := s.rProcessed.PopPlayersFromQueue(ctx, s.queueBatch)
 			if err != nil {
 				logrus.WithField("err", err).Warn("failed-to-popPlayersFromQueue")
-				logrus.Info("data", res)
 				if !sleepOrDone(ctx, 5*time.Second) {
 					return
 				}
@@ -156,6 +155,13 @@ func (s *MatchDataCrawlerService) jobFeeder(ctx context.Context, ioJobQueue chan
 			if err != nil {
 				logrus.WithField("err", err).Warn("failed-to-AddPlayersToBF")
 				continue
+			}
+			if len(tags) > 0 {
+				logrus.WithFields(logrus.Fields{
+					"popped":           len(res),
+					"new_tags":         len(tags),
+					"in_mem_queue_len": len(s.ioJobQueue),
+				}).Info("feeder-accepted-player-tags")
 			}
 			for _, tag := range tags {
 				select {
@@ -254,17 +260,11 @@ func (s *MatchDataCrawlerService) cpuWorker(ctx context.Context, cpuJobQueue <-c
 
 func (s *MatchDataCrawlerService) seedTopPlayers(ctx context.Context) error {
 	tags, err := s.FetchTopPlayerTags(ctx)
-	logrus.Info(fmt.Sprintf("Seeding top players: %d", len(tags)))
 	if err != nil {
 		return err
 	}
-
-	newTags, err := s.rProcessed.AddPlayersToBF(ctx, tags)
-	if err != nil {
-		return err
-	}
-	logrus.Info(fmt.Sprintf("Seeding top players: queueing %d", len(newTags)))
-	return s.rProcessed.AddPlayersToQueue(ctx, newTags)
+	logrus.Info(fmt.Sprintf("Seeding top players: fetched %d", len(tags)))
+	return s.rProcessed.AddPlayersToQueue(ctx, tags)
 }
 
 func (s *MatchDataCrawlerService) FetchTopPlayerTags(ctx context.Context) ([]string, error) {

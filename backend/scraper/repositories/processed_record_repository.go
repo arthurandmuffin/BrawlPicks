@@ -60,12 +60,20 @@ func (r *ProcessedRecordRepository) AddPlayersToQueue(ctx context.Context, tags 
 			return
 		}
 	}
+	logrus.WithFields(logrus.Fields{
+		"added":        len(tags),
+		"queue_length": length,
+	}).Info("players-enqueued")
 	return nil
 }
 
 func (r *ProcessedRecordRepository) PopPlayersFromQueue(ctx context.Context, count int) (res []string, err error) {
 	cmd := r.client.LPopCount(ctx, r.e.Redis.PlayerQueueName, count)
-	return cmd.Result()
+	res, err = cmd.Result()
+	if err == redis.Nil {
+		return []string{}, nil
+	}
+	return res, err
 }
 
 func (r *ProcessedRecordRepository) GetPlayerQueueLength(ctx context.Context) (length int64, err error) {
