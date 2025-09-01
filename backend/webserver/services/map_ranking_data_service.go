@@ -10,7 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	ahttp "BrawlPicks/internal/http"
-	env "BrawlPicks/internal/config"
+	env "BrawlPicks/webserver/config"
 	"BrawlPicks/webserver/models"
 	"BrawlPicks/webserver/repositories"
 	"BrawlPicks/webserver/services/upstream"

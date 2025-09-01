@@ -3,9 +3,9 @@
 package wire
 
 import (
-	"BrawlPicks/webserver/app"
-	env "BrawlPicks/webserver/config"
-	"BrawlPicks/webserver/wire/providers"
+	"BrawlPicks/scraper/app"
+	env "BrawlPicks/scraper/config"
+	"BrawlPicks/scraper/wire/providers"
 
 	"github.com/google/wire"
 )

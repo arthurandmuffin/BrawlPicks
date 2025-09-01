@@ -2,7 +2,7 @@ package services
 
 import (
 	ahttp "BrawlPicks/internal/http"
-	"BrawlPicks/internal/config"
+	env "BrawlPicks/scraper/config"
 	"BrawlPicks/scraper/models"
 	"BrawlPicks/scraper/repositories"
 	"BrawlPicks/scraper/services/upstream"
@@ -30,7 +30,7 @@ const (
 
 type MatchDataCrawlerServiceInterface interface {
 	Crawl(ctx context.Context)
-	SeedTopPlayers(ctx context.Context) error
+	SeedQueue(ctx context.Context) error
 	FetchTopPlayerTags(ctx context.Context) ([]string, error)
 }
 
@@ -44,6 +44,9 @@ type MatchDataCrawlerService struct {
 	queueLimit                    int
 	queueBatch                    int
 	queueLow, queueHigh           int
+	seedThreshold                 int64
+	seedCooldown                  time.Duration
+	lastSeededAt                  time.Time
 	ioJobQueue                    chan string
 	cpuJobQueue                   chan *models.Battle
 	rProcessed                    repositories.ProcessedRecordRepositoryInterface
@@ -51,24 +54,46 @@ type MatchDataCrawlerService struct {
 	rSynergy                      repositories.SynergyCounterRepositoryInterface
 }
 
-func NewMatchDataCrawlerService(e *env.Env, client *ahttp.Client) *MatchDataCrawlerService {
+func NewMatchDataCrawlerService(
+	e *env.Env,
+	client *ahttp.Client,
+	rProcessed repositories.ProcessedRecordRepositoryInterface,
+	rBattleLog repositories.BattleLogRepositoryInterface,
+	rSynergy repositories.SynergyCounterRepositoryInterface,
+) *MatchDataCrawlerService {
 	service := &MatchDataCrawlerService{
-		e:          e,
-		queueLimit: 10,
-		client:     client,
-		qps:        defaultCrawlerQPS,
-		burst:      defaultCrawlerBurst,
+		e:              e,
+		queueLimit:     10,
+		client:         client,
+		qps:            defaultCrawlerQPS,
+		burst:          defaultCrawlerBurst,
 		ioWorkerCount:  defaultCrawlerIOWorkers,
 		cpuWorkerCount: defaultCrawlerCPUWorkers,
 		queueBatch:     defaultCrawlerQueueBatch,
 		queueLow:       defaultCrawlerQueueLow,
 		queueHigh:      defaultCrawlerQueueHigh,
+		seedThreshold:  int64(defaultCrawlerQueueLow),
+		seedCooldown:   30 * time.Second,
 		ioJobQueue:     make(chan string, defaultCrawlerChannelSize),
 		cpuJobQueue:    make(chan *models.Battle, defaultCrawlerChannelSize),
+		rProcessed:     rProcessed,
+		rBattleLog:     rBattleLog,
+		rSynergy:       rSynergy,
 	}
 	if e != nil && e.Brawl != nil {
 		service.targetHost = e.Brawl.BattleLogEndpoint
 		service.token = e.Brawl.Key
+		if e.Brawl.QueueLimit > 0 {
+			service.queueLimit = e.Brawl.QueueLimit
+		}
+	}
+	if e != nil && e.Crawler != nil {
+		if e.Crawler.SeedThreshold > 0 {
+			service.seedThreshold = e.Crawler.SeedThreshold
+		}
+		if e.Crawler.SeedCooldownSeconds > 0 {
+			service.seedCooldown = time.Duration(e.Crawler.SeedCooldownSeconds) * time.Second
+		}
 	}
 	return service
 }
@@ -92,6 +117,13 @@ func (s *MatchDataCrawlerService) jobFeeder(ctx context.Context, ioJobQueue chan
 		if ctx.Err() != nil {
 			return
 		}
+		if err := s.SeedQueue(ctx); err != nil {
+			logrus.WithField("err", err).Warn("failed-to-seed-top-players")
+			if !sleepOrDone(ctx, 5*time.Second) {
+				return
+			}
+			continue
+		}
 		if len(ioJobQueue) > s.queueLow {
 			select {
 			case <-time.After(time.Second):
@@ -104,12 +136,16 @@ func (s *MatchDataCrawlerService) jobFeeder(ctx context.Context, ioJobQueue chan
 			res, err := s.rProcessed.PopPlayersFromQueue(ctx, s.queueBatch)
 			if err != nil {
 				logrus.WithField("err", err).Warn("failed-to-popPlayersFromQueue")
+				logrus.Info("data", res)
 				if !sleepOrDone(ctx, 5*time.Second) {
 					return
 				}
 				continue
 			}
 			if len(res) == 0 {
+				if err := s.SeedQueue(ctx); err != nil {
+					logrus.WithField("err", err).Warn("failed-to-reseed-top-players")
+				}
 				if !sleepOrDone(ctx, time.Second) {
 					return
 				}
@@ -130,6 +166,29 @@ func (s *MatchDataCrawlerService) jobFeeder(ctx context.Context, ioJobQueue chan
 			}
 		}
 	}
+}
+
+func (s *MatchDataCrawlerService) SeedQueue(ctx context.Context) error {
+	if s.rProcessed == nil {
+		return nil
+	}
+
+	queueLength, err := s.rProcessed.GetPlayerQueueLength(ctx)
+	if err != nil {
+		return err
+	}
+	if queueLength >= s.seedThreshold {
+		return nil
+	}
+	if s.seedCooldown > 0 && !s.lastSeededAt.IsZero() && time.Since(s.lastSeededAt) < s.seedCooldown {
+		return nil
+	}
+
+	if err := s.seedTopPlayers(ctx); err != nil {
+		return err
+	}
+	s.lastSeededAt = time.Now()
+	return nil
 }
 
 func (s *MatchDataCrawlerService) ioWorker(ctx context.Context, lim *rate.Limiter, ioJobQueue <-chan string, cpuJobQueue chan<- *models.Battle) {
@@ -193,8 +252,9 @@ func (s *MatchDataCrawlerService) cpuWorker(ctx context.Context, cpuJobQueue <-c
 	}
 }
 
-func (s *MatchDataCrawlerService) SeedTopPlayers(ctx context.Context) error {
+func (s *MatchDataCrawlerService) seedTopPlayers(ctx context.Context) error {
 	tags, err := s.FetchTopPlayerTags(ctx)
+	logrus.Info(fmt.Sprintf("Seeding top players: %d", len(tags)))
 	if err != nil {
 		return err
 	}
@@ -203,6 +263,7 @@ func (s *MatchDataCrawlerService) SeedTopPlayers(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	logrus.Info(fmt.Sprintf("Seeding top players: queueing %d", len(newTags)))
 	return s.rProcessed.AddPlayersToQueue(ctx, newTags)
 }
 

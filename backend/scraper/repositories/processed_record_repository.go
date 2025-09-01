@@ -1,7 +1,7 @@
 package repositories
 
 import (
-	"BrawlPicks/internal/config"
+	"BrawlPicks/scraper/config"
 	"BrawlPicks/scraper/services/upstream"
 	"context"
 	"fmt"

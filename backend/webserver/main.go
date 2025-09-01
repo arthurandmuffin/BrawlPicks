@@ -2,7 +2,7 @@ package main
 
 import (
 	internal "BrawlPicks/internal/logging"
-	"BrawlPicks/internal/config"
+	"BrawlPicks/webserver/config"
 	"BrawlPicks/webserver/wire"
 	"flag"
 
@@ -12,7 +12,7 @@ import (
 func main() {
 	internal.SetupLogger()
 
-	path := flag.String("d", "./internal/config/default.yml", "")
+	path := flag.String("d", "./webserver/config/default.yml", "")
 	flag.Parse()
 
 	env, err := env.Get(*path)

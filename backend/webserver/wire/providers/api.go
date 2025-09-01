@@ -3,7 +3,7 @@ package providers
 import (
 	"BrawlPicks/webserver/internal/api"
 	"BrawlPicks/internal/ctx"
-	env "BrawlPicks/internal/config"
+	env "BrawlPicks/webserver/config"
 	"BrawlPicks/webserver/docs"
 	"BrawlPicks/webserver/repositories"
 	"BrawlPicks/webserver/routes"

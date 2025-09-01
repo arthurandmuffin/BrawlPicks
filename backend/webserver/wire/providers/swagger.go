@@ -1,7 +1,7 @@
 package providers
 
 import (
-	env "BrawlPicks/internal/config"
+	env "BrawlPicks/webserver/config"
 	"BrawlPicks/webserver/docs"
 
 	"github.com/google/wire"

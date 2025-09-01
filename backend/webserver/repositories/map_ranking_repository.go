@@ -1,7 +1,7 @@
 package repositories
 
 import (
-	env "BrawlPicks/internal/config"
+	env "BrawlPicks/webserver/config"
 	"BrawlPicks/webserver/models"
 	"BrawlPicks/webserver/internal/variables"
 	"encoding/json"

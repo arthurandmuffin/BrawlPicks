@@ -9,7 +9,7 @@ package wire
 import (
 	"BrawlPicks/webserver/app"
 	"BrawlPicks/internal/ctx"
-	env "BrawlPicks/internal/config"
+	env "BrawlPicks/webserver/config"
 	"BrawlPicks/webserver/controllers"
 	"BrawlPicks/webserver/repositories"
 	"BrawlPicks/webserver/routes"
