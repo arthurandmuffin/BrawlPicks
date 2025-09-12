@@ -17,17 +17,6 @@ import (
 	"golang.org/x/time/rate"
 )
 
-const (
-	defaultCrawlerQPS         = 5
-	defaultCrawlerBurst       = 10
-	defaultCrawlerIOWorkers   = 4
-	defaultCrawlerCPUWorkers  = 2
-	defaultCrawlerQueueBatch  = 25
-	defaultCrawlerQueueLow    = 25
-	defaultCrawlerQueueHigh   = 100
-	defaultCrawlerChannelSize = 128
-)
-
 type MatchDataCrawlerServiceInterface interface {
 	Crawl(ctx context.Context)
 	SeedQueue(ctx context.Context) error
@@ -41,7 +30,6 @@ type MatchDataCrawlerService struct {
 	token                         string
 	qps, burst                    int
 	ioWorkerCount, cpuWorkerCount int
-	queueLimit                    int
 	queueBatch                    int
 	queueLow, queueHigh           int
 	seedThreshold                 int64
@@ -62,37 +50,35 @@ func NewMatchDataCrawlerService(
 	rSynergy repositories.SynergyCounterRepositoryInterface,
 ) *MatchDataCrawlerService {
 	service := &MatchDataCrawlerService{
-		e:              e,
-		queueLimit:     10,
-		client:         client,
-		qps:            defaultCrawlerQPS,
-		burst:          defaultCrawlerBurst,
-		ioWorkerCount:  defaultCrawlerIOWorkers,
-		cpuWorkerCount: defaultCrawlerCPUWorkers,
-		queueBatch:     defaultCrawlerQueueBatch,
-		queueLow:       defaultCrawlerQueueLow,
-		queueHigh:      defaultCrawlerQueueHigh,
-		seedThreshold:  int64(defaultCrawlerQueueLow),
-		seedCooldown:   30 * time.Second,
-		ioJobQueue:     make(chan string, defaultCrawlerChannelSize),
-		cpuJobQueue:    make(chan *models.Battle, defaultCrawlerChannelSize),
-		rProcessed:     rProcessed,
-		rBattleLog:     rBattleLog,
-		rSynergy:       rSynergy,
+		e:          e,
+		client:     client,
+		rProcessed: rProcessed,
+		rBattleLog: rBattleLog,
+		rSynergy:   rSynergy,
 	}
 	if e != nil && e.Brawl != nil {
 		service.targetHost = e.Brawl.BattleLogEndpoint
 		service.token = e.Brawl.Key
-		if e.Brawl.QueueLimit > 0 {
-			service.queueLimit = e.Brawl.QueueLimit
-		}
 	}
 	if e != nil && e.Crawler != nil {
-		if e.Crawler.SeedThreshold > 0 {
-			service.seedThreshold = e.Crawler.SeedThreshold
+		if e.Crawler.RateLimit != nil {
+			service.qps = e.Crawler.RateLimit.QPS
+			service.burst = e.Crawler.RateLimit.Burst
 		}
-		if e.Crawler.SeedCooldownSeconds > 0 {
-			service.seedCooldown = time.Duration(e.Crawler.SeedCooldownSeconds) * time.Second
+		if e.Crawler.Workers != nil {
+			service.ioWorkerCount = e.Crawler.Workers.IO
+			service.cpuWorkerCount = e.Crawler.Workers.CPU
+		}
+		if e.Crawler.Queue != nil {
+			service.queueBatch = e.Crawler.Queue.Batch
+			service.queueLow = e.Crawler.Queue.Low
+			service.queueHigh = e.Crawler.Queue.High
+			service.ioJobQueue = make(chan string, e.Crawler.Queue.ChannelSize)
+			service.cpuJobQueue = make(chan *models.Battle, e.Crawler.Queue.ChannelSize)
+		}
+		if e.Crawler.Seeding != nil {
+			service.seedThreshold = e.Crawler.Seeding.Threshold
+			service.seedCooldown = time.Duration(e.Crawler.Seeding.CooldownSeconds) * time.Second
 		}
 	}
 	return service
@@ -124,6 +110,7 @@ func (s *MatchDataCrawlerService) jobFeeder(ctx context.Context, ioJobQueue chan
 			}
 			continue
 		}
+
 		if len(ioJobQueue) > s.queueLow {
 			select {
 			case <-time.After(time.Second):

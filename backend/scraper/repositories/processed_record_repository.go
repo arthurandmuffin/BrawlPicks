@@ -1,7 +1,7 @@
 package repositories
 
 import (
-	"BrawlPicks/scraper/config"
+	env "BrawlPicks/scraper/config"
 	"BrawlPicks/scraper/services/upstream"
 	"context"
 	"fmt"
@@ -45,6 +45,22 @@ func (r *ProcessedRecordRepository) AddPlayersToQueue(ctx context.Context, tags 
 
 	for i, tag := range tags {
 		args[i] = tag
+	}
+
+	currentLength, err := r.GetPlayerQueueLength(ctx)
+	if err != nil {
+		return err
+	}
+
+	capacityTrigger := queueLimit * int64(r.e.Crawler.Queue.CapacityTrigger)
+	if currentLength > capacityTrigger {
+		logrus.WithFields(logrus.Fields{
+			"queue_length":     currentLength,
+			"queue_limit":      queueLimit,
+			"capacity_trigger": capacityTrigger,
+			"dropped":          len(tags),
+		}).Info("skip-enqueue")
+		return nil
 	}
 
 	cmd := r.client.RPush(ctx, queueKey, args...)

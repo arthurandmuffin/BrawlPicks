@@ -40,12 +40,36 @@ type Brawl struct {
 	TopPlayersEndpoint string `yaml:"topPlayersEndpoint"`
 	BattleLogEndpoint  string `yaml:"battleLogEndpoint"`
 	Key                string `yaml:"key"`
-	QueueLimit         int    `yaml:"queueLimit"`
 }
 
 type Crawler struct {
-	SeedThreshold       int64 `yaml:"seedThreshold"`
-	SeedCooldownSeconds int   `yaml:"seedCooldownSeconds"`
+	Seeding   *CrawlerSeeding   `yaml:"seeding"`
+	RateLimit *CrawlerRateLimit `yaml:"rateLimit"`
+	Workers   *CrawlerWorkers   `yaml:"workers"`
+	Queue     *CrawlerQueue     `yaml:"queue"`
+}
+
+type CrawlerSeeding struct {
+	Threshold       int64 `yaml:"threshold"`
+	CooldownSeconds int   `yaml:"cooldownSeconds"`
+}
+
+type CrawlerRateLimit struct {
+	QPS   int `yaml:"qps"`
+	Burst int `yaml:"burst"`
+}
+
+type CrawlerWorkers struct {
+	IO  int `yaml:"io"`
+	CPU int `yaml:"cpu"`
+}
+
+type CrawlerQueue struct {
+	Batch           int `yaml:"batch"`
+	Low             int `yaml:"low"`
+	High            int `yaml:"high"`
+	ChannelSize     int `yaml:"channelSize"`
+	CapacityTrigger int `yaml:"capacityTrigger"`
 }
 
 type Storage struct {
