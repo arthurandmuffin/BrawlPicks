@@ -3,3 +3,5 @@ processed/
 *.yml
 *.txt
 .DS_Store
+.gocache
+data/
