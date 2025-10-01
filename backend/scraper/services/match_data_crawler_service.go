@@ -21,6 +21,7 @@ type MatchDataCrawlerServiceInterface interface {
 	Crawl(ctx context.Context)
 	SeedQueue(ctx context.Context) error
 	FetchTopPlayerTags(ctx context.Context) ([]string, error)
+	GetQueueLength(ctx context.Context) (int64, error)
 }
 
 type MatchDataCrawlerService struct {
@@ -143,13 +144,6 @@ func (s *MatchDataCrawlerService) jobFeeder(ctx context.Context, ioJobQueue chan
 				logrus.WithField("err", err).Warn("failed-to-AddPlayersToBF")
 				continue
 			}
-			if len(tags) > 0 {
-				logrus.WithFields(logrus.Fields{
-					"popped":           len(res),
-					"new_tags":         len(tags),
-					"in_mem_queue_len": len(s.ioJobQueue),
-				}).Info("feeder-accepted-player-tags")
-			}
 			for _, tag := range tags {
 				select {
 				case ioJobQueue <- tag:
@@ -173,15 +167,31 @@ func (s *MatchDataCrawlerService) SeedQueue(ctx context.Context) error {
 	if queueLength >= s.seedThreshold {
 		return nil
 	}
-	if s.seedCooldown > 0 && !s.lastSeededAt.IsZero() && time.Since(s.lastSeededAt) < s.seedCooldown {
+	if !s.lastSeededAt.IsZero() && time.Since(s.lastSeededAt) < s.seedCooldown {
+		logrus.WithFields(logrus.Fields{
+			"queue_length": queueLength,
+			"threshold":    s.seedThreshold,
+			"cooldown":     s.seedCooldown.String(),
+		}).Info("skip-seeding-cooldown-active")
 		return nil
 	}
 
+	logrus.WithFields(logrus.Fields{
+		"queue_length": queueLength,
+		"threshold":    s.seedThreshold,
+	}).Info("seeding-triggered")
 	if err := s.seedTopPlayers(ctx); err != nil {
 		return err
 	}
 	s.lastSeededAt = time.Now()
 	return nil
+}
+
+func (s *MatchDataCrawlerService) GetQueueLength(ctx context.Context) (int64, error) {
+	if s.rProcessed == nil {
+		return 0, nil
+	}
+	return s.rProcessed.GetPlayerQueueLength(ctx)
 }
 
 func (s *MatchDataCrawlerService) ioWorker(ctx context.Context, lim *rate.Limiter, ioJobQueue <-chan string, cpuJobQueue chan<- *models.Battle) {
@@ -255,6 +265,7 @@ func (s *MatchDataCrawlerService) seedTopPlayers(ctx context.Context) error {
 }
 
 func (s *MatchDataCrawlerService) FetchTopPlayerTags(ctx context.Context) ([]string, error) {
+	logrus.Info("fetching-top-players")
 	topPlayers := new(upstream.TopPlayersResponse)
 	req, err := s.newTopPlayersRequest()
 	if err != nil {

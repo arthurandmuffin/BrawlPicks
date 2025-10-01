@@ -37,10 +37,17 @@ func (a *App) Run() error {
 		}
 	}()
 
+	queueLength, err := a.crawler.GetQueueLength(a.ctx)
+	if err != nil {
+		return err
+	}
+	logrus.WithField("queue_length", queueLength).Info("starting-scraper")
+
 	if err := a.crawler.SeedQueue(a.ctx); err != nil {
 		return err
 	}
 
+	logrus.Info("starting-scrape-loop")
 	a.crawler.Crawl(a.ctx)
 	return nil
 }
