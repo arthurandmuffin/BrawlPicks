@@ -22,6 +22,7 @@ type Redis struct {
 	Credentials      *RedisCredentials `yaml:"credentials"`
 	PlayerQueueName  string            `yaml:"queueName"`
 	PlayerQueueLimit int64             `yaml:"queueLimit"`
+	CapacityTrigger  int               `yaml:"capacityTrigger"`
 	PlayerBFPrefix   string            `yaml:"playerBFPrefix"`
 	PlayerBFCapacity int64             `yaml:"playerBFCapacity"`
 	PlayerBFTTL      int64             `yaml:"playerBFTTL"`
@@ -66,11 +67,10 @@ type ScraperWorkers struct {
 }
 
 type ScraperQueue struct {
-	Batch           int `yaml:"batch"`
-	Low             int `yaml:"low"`
-	High            int `yaml:"high"`
-	ChannelSize     int `yaml:"channelSize"`
-	CapacityTrigger int `yaml:"capacityTrigger"`
+	Batch       int `yaml:"batch"`
+	Low         int `yaml:"low"`
+	High        int `yaml:"high"`
+	ChannelSize int `yaml:"channelSize"`
 }
 
 type Monitor struct {
