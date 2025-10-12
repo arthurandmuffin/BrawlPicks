@@ -51,7 +51,7 @@ func (r *ProcessedRecordRepository) AddPlayersToQueue(ctx context.Context, tags 
 		return err
 	}
 
-	capacityTrigger := queueLimit * int64(r.e.Crawler.Queue.CapacityTrigger)
+	capacityTrigger := queueLimit * int64(r.e.Scraper.Queue.CapacityTrigger)
 	if currentLength > capacityTrigger {
 		return nil
 	}

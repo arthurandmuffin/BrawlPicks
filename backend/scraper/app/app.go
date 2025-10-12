@@ -13,14 +13,14 @@ type closer interface {
 
 type App struct {
 	ctx     context.Context
-	crawler services.MatchDataCrawlerServiceInterface
+	scraper services.ScraperServiceInterface
 	closers []closer
 }
 
-func NewApp(ctx context.Context, crawler services.MatchDataCrawlerServiceInterface, closers ...closer) *App {
+func NewApp(ctx context.Context, scraper services.ScraperServiceInterface, closers ...closer) *App {
 	return &App{
 		ctx:     ctx,
-		crawler: crawler,
+		scraper: scraper,
 		closers: closers,
 	}
 }
@@ -37,17 +37,12 @@ func (a *App) Run() error {
 		}
 	}()
 
-	queueLength, err := a.crawler.GetQueueLength(a.ctx)
-	if err != nil {
-		return err
-	}
-	logrus.WithField("queue_length", queueLength).Info("starting-scraper")
-
-	if err := a.crawler.SeedQueue(a.ctx); err != nil {
+	logrus.Info("starting-scraper")
+	if err := a.scraper.SeedQueue(a.ctx); err != nil {
 		return err
 	}
 
 	logrus.Info("starting-scrape-loop")
-	a.crawler.Crawl(a.ctx)
+	a.scraper.Crawl(a.ctx)
 	return nil
 }

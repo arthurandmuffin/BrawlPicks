@@ -22,12 +22,13 @@ func InitializeApp(envEnv *env.Env) (*app.App, error) {
 	client := providers.NewHttpClient()
 	client2 := providers.NewRedisClient(envEnv)
 	processedRecordRepository := repositories.NewProcessedRecordRepository(client2, envEnv)
+	monitorService := services.NewMonitorService(envEnv, processedRecordRepository)
 	battleLogRepository := providers.NewBattleLogRepository(envEnv)
 	synergyCounterRepository, err := providers.NewSynergyCounterRepository(envEnv)
 	if err != nil {
 		return nil, err
 	}
-	matchDataCrawlerService := services.NewMatchDataCrawlerService(envEnv, client, processedRecordRepository, battleLogRepository, synergyCounterRepository)
-	appApp := providers.NewScraperApp(context, matchDataCrawlerService, battleLogRepository, synergyCounterRepository, client2)
+	scraperService := services.NewScraperService(envEnv, client, monitorService, processedRecordRepository, battleLogRepository, synergyCounterRepository)
+	appApp := providers.NewScraperApp(context, scraperService, battleLogRepository, synergyCounterRepository, client2)
 	return appApp, nil
 }

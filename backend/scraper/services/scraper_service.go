@@ -17,16 +17,16 @@ import (
 	"golang.org/x/time/rate"
 )
 
-type MatchDataCrawlerServiceInterface interface {
+type ScraperServiceInterface interface {
 	Crawl(ctx context.Context)
 	SeedQueue(ctx context.Context) error
 	FetchTopPlayerTags(ctx context.Context) ([]string, error)
-	GetQueueLength(ctx context.Context) (int64, error)
 }
 
-type MatchDataCrawlerService struct {
+type ScraperService struct {
 	e                             *env.Env
 	client                        *ahttp.Client
+	monitor                       MonitorServiceInterface
 	targetHost                    string
 	token                         string
 	qps, burst                    int
@@ -43,16 +43,18 @@ type MatchDataCrawlerService struct {
 	rSynergy                      repositories.SynergyCounterRepositoryInterface
 }
 
-func NewMatchDataCrawlerService(
+func NewScraperService(
 	e *env.Env,
 	client *ahttp.Client,
+	monitor MonitorServiceInterface,
 	rProcessed repositories.ProcessedRecordRepositoryInterface,
 	rBattleLog repositories.BattleLogRepositoryInterface,
 	rSynergy repositories.SynergyCounterRepositoryInterface,
-) *MatchDataCrawlerService {
-	service := &MatchDataCrawlerService{
+) *ScraperService {
+	service := &ScraperService{
 		e:          e,
 		client:     client,
+		monitor:    monitor,
 		rProcessed: rProcessed,
 		rBattleLog: rBattleLog,
 		rSynergy:   rSynergy,
@@ -61,33 +63,36 @@ func NewMatchDataCrawlerService(
 		service.targetHost = e.Brawl.BattleLogEndpoint
 		service.token = e.Brawl.Key
 	}
-	if e != nil && e.Crawler != nil {
-		if e.Crawler.RateLimit != nil {
-			service.qps = e.Crawler.RateLimit.QPS
-			service.burst = e.Crawler.RateLimit.Burst
+	if e != nil && e.Scraper != nil {
+		if e.Scraper.RateLimit != nil {
+			service.qps = e.Scraper.RateLimit.QPS
+			service.burst = e.Scraper.RateLimit.Burst
 		}
-		if e.Crawler.Workers != nil {
-			service.ioWorkerCount = e.Crawler.Workers.IO
-			service.cpuWorkerCount = e.Crawler.Workers.CPU
+		if e.Scraper.Workers != nil {
+			service.ioWorkerCount = e.Scraper.Workers.IO
+			service.cpuWorkerCount = e.Scraper.Workers.CPU
 		}
-		if e.Crawler.Queue != nil {
-			service.queueBatch = e.Crawler.Queue.Batch
-			service.queueLow = e.Crawler.Queue.Low
-			service.queueHigh = e.Crawler.Queue.High
-			service.ioJobQueue = make(chan string, e.Crawler.Queue.ChannelSize)
-			service.cpuJobQueue = make(chan *models.Battle, e.Crawler.Queue.ChannelSize)
+		if e.Scraper.Queue != nil {
+			service.queueBatch = e.Scraper.Queue.Batch
+			service.queueLow = e.Scraper.Queue.Low
+			service.queueHigh = e.Scraper.Queue.High
+			service.ioJobQueue = make(chan string, e.Scraper.Queue.ChannelSize)
+			service.cpuJobQueue = make(chan *models.Battle, e.Scraper.Queue.ChannelSize)
 		}
-		if e.Crawler.Seeding != nil {
-			service.seedThreshold = e.Crawler.Seeding.Threshold
-			service.seedCooldown = time.Duration(e.Crawler.Seeding.CooldownSeconds) * time.Second
+		if e.Scraper.Seeding != nil {
+			service.seedThreshold = e.Scraper.Seeding.Threshold
+			service.seedCooldown = time.Duration(e.Scraper.Seeding.CooldownSeconds) * time.Second
 		}
 	}
 	return service
 }
 
-func (s *MatchDataCrawlerService) Crawl(ctx context.Context) {
+func (s *ScraperService) Crawl(ctx context.Context) {
 	lim := rate.NewLimiter(rate.Limit(s.qps), s.burst)
 
+	if s.monitor != nil {
+		go s.monitor.Start(ctx)
+	}
 	for i := 0; i < s.ioWorkerCount; i++ {
 		go s.ioWorker(ctx, lim, s.ioJobQueue, s.cpuJobQueue)
 	}
@@ -99,7 +104,7 @@ func (s *MatchDataCrawlerService) Crawl(ctx context.Context) {
 	<-ctx.Done()
 }
 
-func (s *MatchDataCrawlerService) jobFeeder(ctx context.Context, ioJobQueue chan<- string) {
+func (s *ScraperService) jobFeeder(ctx context.Context, ioJobQueue chan<- string) {
 	for {
 		if ctx.Err() != nil {
 			return
@@ -155,7 +160,7 @@ func (s *MatchDataCrawlerService) jobFeeder(ctx context.Context, ioJobQueue chan
 	}
 }
 
-func (s *MatchDataCrawlerService) SeedQueue(ctx context.Context) error {
+func (s *ScraperService) SeedQueue(ctx context.Context) error {
 	if s.rProcessed == nil {
 		return nil
 	}
@@ -187,14 +192,7 @@ func (s *MatchDataCrawlerService) SeedQueue(ctx context.Context) error {
 	return nil
 }
 
-func (s *MatchDataCrawlerService) GetQueueLength(ctx context.Context) (int64, error) {
-	if s.rProcessed == nil {
-		return 0, nil
-	}
-	return s.rProcessed.GetPlayerQueueLength(ctx)
-}
-
-func (s *MatchDataCrawlerService) ioWorker(ctx context.Context, lim *rate.Limiter, ioJobQueue <-chan string, cpuJobQueue chan<- *models.Battle) {
+func (s *ScraperService) ioWorker(ctx context.Context, lim *rate.Limiter, ioJobQueue <-chan string, cpuJobQueue chan<- *models.Battle) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -215,9 +213,11 @@ func (s *MatchDataCrawlerService) ioWorker(ctx context.Context, lim *rate.Limite
 				logrus.WithField("err", err).Warn("failed-to-AddGamesToBF")
 				continue
 			}
+			newGames := 0
 
 			for i, flag := range flags {
 				if flag {
+					newGames++
 					battle := battles[i]
 					newTags := battle.GetTags(tag)
 					if err := s.rProcessed.AddPlayersToQueue(ctx, newTags); err != nil {
@@ -234,11 +234,14 @@ func (s *MatchDataCrawlerService) ioWorker(ctx context.Context, lim *rate.Limite
 					}
 				}
 			}
+			if s.monitor != nil {
+				s.monitor.AddGames(newGames)
+			}
 		}
 	}
 }
 
-func (s *MatchDataCrawlerService) cpuWorker(ctx context.Context, cpuJobQueue <-chan *models.Battle) {
+func (s *ScraperService) cpuWorker(ctx context.Context, cpuJobQueue <-chan *models.Battle) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -255,7 +258,7 @@ func (s *MatchDataCrawlerService) cpuWorker(ctx context.Context, cpuJobQueue <-c
 	}
 }
 
-func (s *MatchDataCrawlerService) seedTopPlayers(ctx context.Context) error {
+func (s *ScraperService) seedTopPlayers(ctx context.Context) error {
 	tags, err := s.FetchTopPlayerTags(ctx)
 	if err != nil {
 		return err
@@ -264,7 +267,7 @@ func (s *MatchDataCrawlerService) seedTopPlayers(ctx context.Context) error {
 	return s.rProcessed.AddPlayersToQueue(ctx, tags)
 }
 
-func (s *MatchDataCrawlerService) FetchTopPlayerTags(ctx context.Context) ([]string, error) {
+func (s *ScraperService) FetchTopPlayerTags(ctx context.Context) ([]string, error) {
 	logrus.Info("fetching-top-players")
 	topPlayers := new(upstream.TopPlayersResponse)
 	req, err := s.newTopPlayersRequest()
@@ -286,7 +289,7 @@ func (s *MatchDataCrawlerService) FetchTopPlayerTags(ctx context.Context) ([]str
 	return tags, nil
 }
 
-func (s *MatchDataCrawlerService) getBattleLog(ctx context.Context, tag string) (battles []*upstream.BattleLogBattle, err error) {
+func (s *ScraperService) getBattleLog(ctx context.Context, tag string) (battles []*upstream.BattleLogBattle, err error) {
 	battleLog := new(upstream.BattleLogResponse)
 	req, err := s.newBattleLogRequest(tag)
 	if err != nil {
@@ -307,7 +310,7 @@ func (s *MatchDataCrawlerService) getBattleLog(ctx context.Context, tag string) 
 	return battles, nil
 }
 
-func (s *MatchDataCrawlerService) newBattleLogRequest(tag string) (req *http.Request, err error) {
+func (s *ScraperService) newBattleLogRequest(tag string) (req *http.Request, err error) {
 	endpoint := s.targetHost
 	if strings.Contains(endpoint, "%s") {
 		endpoint = fmt.Sprintf(endpoint, url.QueryEscape(tag))
@@ -322,7 +325,7 @@ func (s *MatchDataCrawlerService) newBattleLogRequest(tag string) (req *http.Req
 	)
 }
 
-func (s *MatchDataCrawlerService) newTopPlayersRequest() (req *http.Request, err error) {
+func (s *ScraperService) newTopPlayersRequest() (req *http.Request, err error) {
 	return ahttp.NewBearerAuthRequest(
 		http.MethodGet,
 		s.e.Brawl.TopPlayersEndpoint,
