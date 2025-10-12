@@ -16,6 +16,7 @@ import (
 	"github.com/apache/arrow/go/v17/parquet"
 	"github.com/apache/arrow/go/v17/parquet/compress"
 	"github.com/apache/arrow/go/v17/parquet/pqarrow"
+	"github.com/sirupsen/logrus"
 )
 
 type BattleLogRepositoryInterface interface {
@@ -188,6 +189,12 @@ func (r *BattleLogRepository) flushLocked(rank int) (err error) {
 	if err := parquetWriter.Close(); err != nil {
 		return err
 	}
+
+	logrus.WithFields(logrus.Fields{
+		"rank": rank,
+		"rows": rows,
+		"path": path,
+	}).Info("flushed-battle-log-batch")
 
 	r.buffer[rank] = r.buffer[rank][:0]
 	return nil

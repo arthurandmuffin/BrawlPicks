@@ -1,8 +1,8 @@
 package repositories
 
 import (
-	"BrawlPicks/scraper/config"
 	"BrawlPicks/internal/utils"
+	env "BrawlPicks/scraper/config"
 	"BrawlPicks/scraper/models"
 	"encoding/json"
 	"fmt"
@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 type SynergyCounterRepositoryInterface interface {
@@ -98,6 +100,10 @@ func (r *SynergyCounterRepository) loadRecent() (err error) {
 			r.mu.Lock()
 			r.matrices[dateStr] = dailyData
 			r.mu.Unlock()
+			logrus.WithFields(logrus.Fields{
+				"date": dateStr,
+				"maps": len(dailyData),
+			}).Info("loaded-synergy-matrix-day")
 		}
 	}
 	return nil
@@ -145,6 +151,13 @@ func (r *SynergyCounterRepository) flushDay(dateStr string, dailyData map[string
 		return err
 	}
 	err = os.WriteFile(filepath, data, 0644)
+	if err == nil {
+		logrus.WithFields(logrus.Fields{
+			"date": dateStr,
+			"maps": len(dailyData),
+			"path": filepath,
+		}).Info("flushed-synergy-matrix-day")
+	}
 	return
 }
 
