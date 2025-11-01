@@ -5,6 +5,7 @@ import (
 	"BrawlPicks/scraper/services/upstream"
 	"context"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -20,8 +21,10 @@ type ProcessedRecordRepositoryInterface interface {
 }
 
 type ProcessedRecordRepository struct {
-	client *redis.Client
-	e      *env.Env
+	client    *redis.Client
+	e         *env.Env
+	mu        sync.Mutex
+	fillQueue bool
 }
 
 func NewProcessedRecordRepository(client *redis.Client, e *env.Env) *ProcessedRecordRepository {
@@ -52,7 +55,12 @@ func (r *ProcessedRecordRepository) AddPlayersToQueue(ctx context.Context, tags 
 	}
 
 	capacityTrigger := queueLimit * int64(r.e.Redis.CapacityTrigger) / 100
-	if currentLength > capacityTrigger {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if currentLength <= capacityTrigger {
+		r.fillQueue = true
+	}
+	if !r.fillQueue {
 		return nil
 	}
 
@@ -71,6 +79,7 @@ func (r *ProcessedRecordRepository) AddPlayersToQueue(ctx context.Context, tags 
 		if err = cmd.Err(); err != nil {
 			return
 		}
+		r.fillQueue = false
 	}
 	return nil
 }

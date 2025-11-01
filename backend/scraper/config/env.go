@@ -46,6 +46,7 @@ type Brawl struct {
 
 type Scraper struct {
 	Seeding   *ScraperSeeding   `yaml:"seeding"`
+	Processing *ScraperProcessing `yaml:"processing"`
 	RateLimit *ScraperRateLimit `yaml:"rateLimit"`
 	Workers   *ScraperWorkers   `yaml:"workers"`
 	Queue     *ScraperQueue     `yaml:"queue"`
@@ -54,6 +55,10 @@ type Scraper struct {
 type ScraperSeeding struct {
 	Threshold       int64 `yaml:"threshold"`
 	CooldownSeconds int   `yaml:"cooldownSeconds"`
+}
+
+type ScraperProcessing struct {
+	MaxBattleAgeDays int `yaml:"maxBattleAgeDays"`
 }
 
 type ScraperRateLimit struct {

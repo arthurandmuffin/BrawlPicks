@@ -19,6 +19,7 @@ type BattleLogResponse struct {
 type BattleLogBattle struct {
 	Time          time.Time
 	MapName       string
+	Mode          string
 	Result        string
 	StarPlayerTag string
 	Teams         []*Team
@@ -46,9 +47,11 @@ func (b *BattleLogBattle) UnmarshalJSON(data []byte) error {
 	var tmpBattle struct {
 		BattleTime string `json:"battleTime"`
 		Event      struct {
+			Mode    string `json:"mode"`
 			MapName string `json:"map"`
 		} `json:"event"`
 		Details struct {
+			Mode       string `json:"mode"`
 			Type       string `json:"type"`
 			Result     string `json:"result"`
 			StarPlayer struct {
@@ -73,6 +76,10 @@ func (b *BattleLogBattle) UnmarshalJSON(data []byte) error {
 
 	b.Time = t
 	b.MapName = tmpBattle.Event.MapName
+	b.Mode = tmpBattle.Event.Mode
+	if b.Mode == "" {
+		b.Mode = tmpBattle.Details.Mode
+	}
 	b.Result = tmpBattle.Details.Result
 	b.StarPlayerTag = tmpBattle.Details.StarPlayer.Tag
 	for _, team := range tmpBattle.Details.Teams {
@@ -101,6 +108,7 @@ func (b *BattleLogBattle) Transform(tag string) (battle *models.Battle) {
 	battle = &models.Battle{
 		Timestamp: b.Time,
 		MapName:   b.MapName,
+		Mode:      b.Mode,
 		Rank:      b.getMeanRank(),
 		Draw:      b.Result == DrawResult,
 	}
@@ -131,7 +139,7 @@ func (b *BattleLogBattle) Transform(tag string) (battle *models.Battle) {
 }
 
 func (b *BattleLogBattle) IsValid() bool {
-	return b != nil && !b.Time.IsZero() && b.MapName != "" && len(b.Teams) >= 2
+	return b != nil && !b.Time.IsZero() && b.MapName != "" && b.Mode != "" && len(b.Teams) >= 2
 }
 
 func (b *BattleLogBattle) getIDTeams() (res [][]int) {
