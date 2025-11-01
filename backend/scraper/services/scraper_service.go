@@ -35,6 +35,7 @@ type ScraperService struct {
 	queueLow, queueHigh           int
 	seedThreshold                 int64
 	seedCooldown                  time.Duration
+	maxBattleAge                  time.Duration
 	lastSeededAt                  time.Time
 	ioJobQueue                    chan string
 	cpuJobQueue                   chan *models.Battle
@@ -78,6 +79,9 @@ func NewScraperService(
 			service.queueHigh = e.Scraper.Queue.High
 			service.ioJobQueue = make(chan string, e.Scraper.Queue.ChannelSize)
 			service.cpuJobQueue = make(chan *models.Battle, e.Scraper.Queue.ChannelSize)
+		}
+		if e.Scraper.Processing != nil {
+			service.maxBattleAge = time.Duration(e.Scraper.Processing.MaxBattleAgeDays) * 24 * time.Hour
 		}
 		if e.Scraper.Seeding != nil {
 			service.seedThreshold = e.Scraper.Seeding.Threshold
@@ -301,8 +305,15 @@ func (s *ScraperService) getBattleLog(ctx context.Context, tag string) (battles 
 	}
 
 	battles = make([]*upstream.BattleLogBattle, 0, len(battleLog.Battles))
+	cutoffTime := time.Time{}
+	if s.maxBattleAge > 0 {
+		cutoffTime = time.Now().UTC().Add(-s.maxBattleAge)
+	}
 	for _, battle := range battleLog.Battles {
 		if battle == nil || !battle.IsValid() {
+			continue
+		}
+		if !cutoffTime.IsZero() && battle.Time.Before(cutoffTime) {
 			continue
 		}
 		battles = append(battles, battle)
