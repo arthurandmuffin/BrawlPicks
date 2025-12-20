@@ -5,3 +5,5 @@ processed/
 .DS_Store
 .gocache
 data/
+__pycache__
+artifacts/
