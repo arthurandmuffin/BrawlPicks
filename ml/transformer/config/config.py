@@ -3,7 +3,6 @@ from pathlib import Path
 
 import yaml
 
-
 @dataclass
 class PathConfig:
     source_dir: Path
@@ -16,22 +15,19 @@ class PathConfig:
     synergy_file: str
     counter_file: str
 
-
 @dataclass
 class DatasetConfig:
     lookback_days: int
-
+    include_today: bool
 
 @dataclass
 class AggregateWindowConfig:
     prior_days: int
 
-
 @dataclass
 class FeatureConfig:
     rank_bucket_size: int
     include_draws: bool
-
 
 @dataclass
 class Config:
@@ -39,7 +35,6 @@ class Config:
     dataset: DatasetConfig
     aggregate_window: AggregateWindowConfig
     features: FeatureConfig
-
 
 def load_config(path: Path) -> Config:
     with path.open("r", encoding="utf-8") as handle:
@@ -62,6 +57,7 @@ def load_config(path: Path) -> Config:
         ),
         dataset=DatasetConfig(
             lookback_days=int(raw["dataset"]["lookbackDays"]),
+            include_today=bool(raw["dataset"]["includeToday"]),
         ),
         aggregate_window=AggregateWindowConfig(
             prior_days=int(raw["aggregateWindow"]["priorDays"]),

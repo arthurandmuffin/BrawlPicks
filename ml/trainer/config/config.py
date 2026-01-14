@@ -1,9 +1,12 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from util.pathing import resolve_path
-from util.yaml_io import read_yaml_file
-
+try:
+    from trainer.util.pathing import resolve_path
+    from trainer.util.yaml_io import read_yaml_file
+except ImportError:
+    from util.pathing import resolve_path
+    from util.yaml_io import read_yaml_file
 
 @dataclass
 class PathConfig:
@@ -12,23 +15,19 @@ class PathConfig:
     models_dir: Path
     registry_file: Path
 
-
 @dataclass
 class DatasetConfig:
     dataset_glob: str
     drop_draws: bool
 
-
 @dataclass
 class SplitConfig:
     validation_day_pct: float
-
 
 @dataclass
 class LogisticRegressionConfig:
     c: float
     max_iter: int
-
 
 @dataclass
 class HistGradientBoostingConfig:
@@ -36,12 +35,10 @@ class HistGradientBoostingConfig:
     max_depth: int
     max_iter: int
 
-
 @dataclass
 class ModelConfig:
     logistic_regression: LogisticRegressionConfig
     hist_gradient_boosting: HistGradientBoostingConfig
-
 
 @dataclass
 class ExportConfig:
@@ -50,7 +47,6 @@ class ExportConfig:
     metadata_file: str
     metrics_file: str
     feature_schema_file: str
-
 
 @dataclass
 class Config:

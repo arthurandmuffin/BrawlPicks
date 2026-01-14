@@ -3,18 +3,23 @@ from pathlib import Path
 
 import joblib
 
-from config.config import Config
-from util.yaml_io import write_yaml_file
+try:
+    from trainer.config.config import Config
+    from trainer.util.yaml_io import write_yaml_file
+except ImportError:
+    from config.config import Config
+    from util.yaml_io import write_yaml_file
 
 def export_model_bundle(
     config: Config,
+    models_dir: Path,
     bundle: dict,
     metadata: dict,
     metrics: dict,
     feature_names: list[str],
 ) -> tuple[str, Path]:
     model_id = datetime.now(timezone.utc).strftime("model_%Y%m%dT%H%M%SZ")
-    model_dir = config.paths.models_dir / model_id
+    model_dir = models_dir / model_id
     model_dir.mkdir(parents=True, exist_ok=False)
 
     artifact_path = model_dir / config.export.artifact_file

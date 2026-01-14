@@ -4,7 +4,10 @@ import math
 
 import pandas as pd
 
-from config.config import FeatureConfig
+try:
+    from transformer.config.config import FeatureConfig
+except ImportError:
+    from config.config import FeatureConfig
 
 
 @dataclass

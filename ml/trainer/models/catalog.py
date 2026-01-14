@@ -1,4 +1,7 @@
-from models.sklearn import hist_gradient_boosting, logistic_regression
+try:
+    from trainer.models.sklearn import hist_gradient_boosting, logistic_regression
+except ImportError:
+    from models.sklearn import hist_gradient_boosting, logistic_regression
 
 def build_candidate_models(config) -> list[tuple[str, object]]:
     return [

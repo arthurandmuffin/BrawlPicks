@@ -1,26 +1,47 @@
 from datetime import datetime, timezone
 
-from config.config import Config
-from data.reader import load_latest_dataset
-from data.splitter import split_train_validation
-from evaluation.metrics import evaluate_binary_classifier
-from export.writer import export_model_bundle
-from features.encoder import fit_feature_encoder
-from models.catalog import build_candidate_models
-from registry.writer import update_registry
+try:
+    from trainer.config.config import Config
+    from trainer.data.reader import load_latest_dataset
+    from trainer.data.splitter import split_train_validation
+    from trainer.evaluation.metrics import evaluate_binary_classifier
+    from trainer.export.writer import export_model_bundle
+    from trainer.features.encoder import fit_feature_encoder
+    from trainer.models.catalog import build_candidate_models
+    from trainer.registry.writer import update_registry
+    from trainer.run_context import TrainerRunContext
+except ImportError:
+    from config.config import Config
+    from data.reader import load_latest_dataset
+    from data.splitter import split_train_validation
+    from evaluation.metrics import evaluate_binary_classifier
+    from export.writer import export_model_bundle
+    from features.encoder import fit_feature_encoder
+    from models.catalog import build_candidate_models
+    from registry.writer import update_registry
+    from run_context import TrainerRunContext
 
-def run_training(config: Config) -> None:
+def run_training(config: Config, run_context: TrainerRunContext) -> None:
     print("loading transformed dataset")
     dataset, dataset_path = load_latest_dataset(
-        config.paths.datasets_dir,
+        run_context.datasets_dir,
         config.dataset.dataset_glob,
     )
     print(f"dataset path: {dataset_path}")
     print(f"dataset rows before filtering: {len(dataset)}")
 
+    if "team_A_won" not in dataset.columns:
+        raise ValueError("transformed dataset is missing required column: team_A_won")
+
+    if dataset.empty:
+        raise ValueError("transformed dataset is empty for the selected run window")
+
     if config.dataset.drop_draws:
         dataset = dataset[dataset["team_A_won"] != 0.5].copy()
         print(f"dataset rows after dropping draws: {len(dataset)}")
+
+    if dataset.empty:
+        raise ValueError("no usable training rows remain after filtering")
 
     train_frame, validation_frame = split_train_validation(dataset, config.split.validation_day_pct)
     print(f"train rows: {len(train_frame)}")
@@ -86,13 +107,14 @@ def run_training(config: Config) -> None:
 
     model_id, model_dir = export_model_bundle(
         config,
+        run_context.models_dir,
         bundle,
         metadata,
         metrics_payload,
         feature_names,
     )
     update_registry(
-        config.paths.registry_file,
+        run_context.registry_file,
         model_id,
         model_dir,
         metadata,
@@ -100,4 +122,4 @@ def run_training(config: Config) -> None:
     )
 
     print(f"exported model: {model_dir}")
-    print(f"updated registry: {config.paths.registry_file}")
+    print(f"updated registry: {run_context.registry_file}")

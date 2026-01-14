@@ -1,7 +1,10 @@
 from datetime import datetime, timezone
 from pathlib import Path
 
-from util.yaml_io import read_yaml_file, write_yaml_file
+try:
+    from trainer.util.yaml_io import read_yaml_file, write_yaml_file
+except ImportError:
+    from util.yaml_io import read_yaml_file, write_yaml_file
 
 def update_registry(
     registry_path: Path,

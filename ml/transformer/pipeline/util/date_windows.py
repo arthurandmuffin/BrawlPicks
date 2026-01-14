@@ -1,9 +1,15 @@
 from datetime import date, timedelta
 
 
-def target_dates(lookback_days: int, end_date: date | None = None) -> list[date]:
+def target_dates(
+    lookback_days: int,
+    end_date: date | None = None,
+    include_today: bool = True,
+) -> list[date]:
     if end_date is None:
         end_date = date.today()
+        if not include_today:
+            end_date = end_date - timedelta(days=1)
 
     start_date = end_date - timedelta(days=lookback_days - 1)
     days = []

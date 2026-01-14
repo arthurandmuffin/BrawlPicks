@@ -1,6 +1,9 @@
 from sklearn.ensemble import HistGradientBoostingClassifier
 
-from config.config import Config
+try:
+    from trainer.config.config import Config
+except ImportError:
+    from config.config import Config
 
 def build_model(config: Config):
     return HistGradientBoostingClassifier(

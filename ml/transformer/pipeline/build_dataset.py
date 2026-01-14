@@ -1,15 +1,29 @@
-from config.config import Config
-from pipeline.aggregates.builder import AggregateArtifacts
-from pipeline.battle.enricher import enrich_battles
-from pipeline.battle.reader import read_battles
-from pipeline.util.aggregate_paths import windowed_output_path
-from pipeline.util.date_windows import prior_window_for_day, target_dates
-from pipeline.util.parquet_reader import read_parquet
-from pipeline.util.parquet_writer import write_parquet
+try:
+    from transformer.config.config import Config
+    from transformer.run_context import TransformerRunContext
+    from transformer.pipeline.aggregates.builder import AggregateArtifacts
+    from transformer.pipeline.battle.enricher import OUTPUT_COLUMNS, enrich_battles
+    from transformer.pipeline.battle.reader import read_battles
+    from transformer.pipeline.util.aggregate_paths import windowed_output_path
+    from transformer.pipeline.util.date_windows import prior_window_for_day, target_dates
+    from transformer.pipeline.util.parquet_reader import read_parquet
+    from transformer.pipeline.util.parquet_writer import write_parquet
+except ImportError:
+    from config.config import Config
+    from run_context import TransformerRunContext
+    from pipeline.aggregates.builder import AggregateArtifacts
+    from pipeline.battle.enricher import OUTPUT_COLUMNS, enrich_battles
+    from pipeline.battle.reader import read_battles
+    from pipeline.util.aggregate_paths import windowed_output_path
+    from pipeline.util.date_windows import prior_window_for_day, target_dates
+    from pipeline.util.parquet_reader import read_parquet
+    from pipeline.util.parquet_writer import write_parquet
 
-
-def run_build_dataset(config: Config) -> None:
-    target_days = target_dates(config.dataset.lookback_days)
+def run_build_dataset(config: Config, run_context: TransformerRunContext) -> None:
+    target_days = target_dates(
+        run_context.lookback_days,
+        include_today=run_context.include_today,
+    )
     enriched_frames = []
 
     for target_day in target_days:
@@ -19,7 +33,7 @@ def run_build_dataset(config: Config) -> None:
         )
 
         training_battles = read_battles(
-            config.paths.battle_logs_dir,
+            run_context.battle_logs_dir,
             target_day,
             target_day,
         )
@@ -28,6 +42,7 @@ def run_build_dataset(config: Config) -> None:
 
         aggregates = _load_aggregate_artifacts(
             config,
+            run_context,
             aggregate_start.isoformat(),
             aggregate_end.isoformat(),
         )
@@ -44,13 +59,9 @@ def run_build_dataset(config: Config) -> None:
         #concat stacks each per-day dataframe into one final dataset dataframe
         dataset = pd.concat(enriched_frames, ignore_index=True)
     else:
-        training_battles = read_battles(
-            config.paths.battle_logs_dir,
-            target_days[0],
-            target_days[-1],
-        )
-        #keep the empty result as a dataframe with the same base shape
-        dataset = training_battles.iloc[0:0].copy()
+        import pandas as pd
+
+        dataset = pd.DataFrame(columns=OUTPUT_COLUMNS)
 
     dataset_name = (
         f"training_rows_{target_days[0].isoformat()}_"
@@ -58,18 +69,19 @@ def run_build_dataset(config: Config) -> None:
     )
     write_parquet(
         dataset,
-        config.paths.datasets_dir / dataset_name,
+        run_context.datasets_dir / dataset_name,
     )
 
 
 def _load_aggregate_artifacts(
     config: Config,
+    run_context: TransformerRunContext,
     start_date: str,
     end_date: str,
 ) -> AggregateArtifacts:
     strength = read_parquet(
         windowed_output_path(
-            config.paths.aggregates_dir,
+            run_context.aggregates_dir,
             config.paths.strength_file,
             start_date,
             end_date,
@@ -77,7 +89,7 @@ def _load_aggregate_artifacts(
     )
     synergy = read_parquet(
         windowed_output_path(
-            config.paths.aggregates_dir,
+            run_context.aggregates_dir,
             config.paths.synergy_file,
             start_date,
             end_date,
@@ -85,7 +97,7 @@ def _load_aggregate_artifacts(
     )
     counter = read_parquet(
         windowed_output_path(
-            config.paths.aggregates_dir,
+            run_context.aggregates_dir,
             config.paths.counter_file,
             start_date,
             end_date,

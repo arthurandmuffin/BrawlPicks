@@ -2,8 +2,33 @@ from itertools import combinations
 
 import pandas as pd
 
-from config.config import FeatureConfig
-from pipeline.aggregates.builder import AggregateArtifacts
+try:
+    from transformer.config.config import FeatureConfig
+    from transformer.pipeline.aggregates.builder import AggregateArtifacts
+except ImportError:
+    from config.config import FeatureConfig
+    from pipeline.aggregates.builder import AggregateArtifacts
+
+
+OUTPUT_COLUMNS = [
+    "timestamp",
+    "map_name",
+    "mode",
+    "rank",
+    "rank_bucket",
+    "team_A",
+    "team_B",
+    "team_A_strength_avg",
+    "team_B_strength_avg",
+    "team_A_synergy_avg",
+    "team_B_synergy_avg",
+    "team_A_counter_avg",
+    "team_B_counter_avg",
+    "strength_delta",
+    "synergy_delta",
+    "counter_delta",
+    "team_A_won",
+]
 
 
 def _normalize_team(value):
@@ -94,7 +119,7 @@ def enrich_battles(
         )
 
     #[dict] -> dataframe conversion for parquet write
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows, columns=OUTPUT_COLUMNS)
 
 
 def _build_strength_lookup(frame: pd.DataFrame):
