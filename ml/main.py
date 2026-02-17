@@ -31,7 +31,7 @@ def run_from_config(config_path: Path) -> None:
     print(f"run Dir: {run_dir}")
 
     transformer_config = load_transformer_config(config.paths.transformer_config)
-    #override transformer internal configs
+    #"override" transformer internal configs
     transformer_run_context = TransformerRunContext(
         battle_logs_dir=config.paths.battle_logs_dir,
         aggregates_dir=run_dir / "aggregates",
@@ -42,7 +42,7 @@ def run_from_config(config_path: Path) -> None:
     run_transformer(transformer_config, transformer_run_context)
 
     trainer_config = load_trainer_config(config.paths.trainer_config)
-    #override trainer internal configs
+    #"override" trainer internal configs
     trainer_run_context = TrainerRunContext(
         datasets_dir=run_dir / "datasets",
         models_dir=run_dir / "models",
