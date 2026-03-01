@@ -15,3 +15,17 @@ func UriHandler[T any](next func(*Context, *T)) gin.HandlerFunc {
 		next(c, r)
 	}
 }
+
+func JsonHandler[T any](next func(*Context, *T)) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		var (
+			c = NewContext(ctx)
+			r = new(T)
+		)
+		if err := c.ShouldBindJSON(r); err != nil {
+			c.BadRequest(err)
+			return
+		}
+		next(c, r)
+	}
+}
