@@ -16,6 +16,7 @@ import (
 	"github.com/apache/arrow/go/v17/parquet"
 	"github.com/apache/arrow/go/v17/parquet/compress"
 	"github.com/apache/arrow/go/v17/parquet/pqarrow"
+	"github.com/sirupsen/logrus"
 )
 
 type BattleLogRepositoryInterface interface {
@@ -25,7 +26,7 @@ type BattleLogRepositoryInterface interface {
 
 type BattleLogRepository struct {
 	mu          sync.Mutex
-	buffer      map[int][]models.Battle
+	buffer      map[string]map[int][]models.Battle
 	maxRows     int
 	flushTime   time.Duration
 	outDir      string
@@ -37,6 +38,7 @@ func NewBattleLogRepository(maxRows int, flushTime time.Duration, outDir string)
 	schema := arrow.NewSchema([]arrow.Field{
 		{Name: "timestamp", Type: arrow.FixedWidthTypes.Timestamp_s},
 		{Name: "map_name", Type: arrow.BinaryTypes.String},
+		{Name: "mode", Type: arrow.BinaryTypes.String},
 		{Name: "rank", Type: arrow.PrimitiveTypes.Int64},
 		{Name: "team_W", Type: arrow.ListOf(arrow.PrimitiveTypes.Int64)},
 		{Name: "team_L", Type: arrow.ListOf(arrow.PrimitiveTypes.Int64)},
@@ -44,7 +46,7 @@ func NewBattleLogRepository(maxRows int, flushTime time.Duration, outDir string)
 	}, nil)
 	r := &BattleLogRepository{
 		maxRows:     maxRows,
-		buffer:      make(map[int][]models.Battle),
+		buffer:      make(map[string]map[int][]models.Battle),
 		flushTime:   flushTime,
 		outDir:      outDir,
 		schema:      schema,
@@ -58,15 +60,19 @@ func (r *BattleLogRepository) WriteBattleLog(battle models.Battle) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	dateKey := battle.Timestamp.UTC().Format("2006-01-02")
 	rank := battle.Rank
 
-	if _, ok := r.buffer[rank]; !ok {
-		r.buffer[rank] = make([]models.Battle, 0, r.maxRows)
+	if _, ok := r.buffer[dateKey]; !ok {
+		r.buffer[dateKey] = make(map[int][]models.Battle)
+	}
+	if _, ok := r.buffer[dateKey][rank]; !ok {
+		r.buffer[dateKey][rank] = make([]models.Battle, 0, r.maxRows)
 	}
 
-	r.buffer[rank] = append(r.buffer[rank], battle)
-	if len(r.buffer[rank]) >= r.maxRows {
-		return r.flushLocked(rank)
+	r.buffer[dateKey][rank] = append(r.buffer[dateKey][rank], battle)
+	if len(r.buffer[dateKey][rank]) >= r.maxRows {
+		return r.flushLocked(dateKey, rank)
 	}
 	return nil
 }
@@ -75,10 +81,12 @@ func (r *BattleLogRepository) Close() error {
 	r.flushTicker.Stop()
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	for rank, data := range r.buffer {
-		if len(data) > 0 {
-			if err := r.flushLocked(rank); err != nil {
-				return err
+	for dateKey, ranks := range r.buffer {
+		for rank, data := range ranks {
+			if len(data) > 0 {
+				if err := r.flushLocked(dateKey, rank); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -88,17 +96,19 @@ func (r *BattleLogRepository) Close() error {
 func (r *BattleLogRepository) autoFlush() {
 	for range r.flushTicker.C {
 		r.mu.Lock()
-		for rank, data := range r.buffer {
-			if len(data) > 0 {
-				_ = r.flushLocked(rank)
+		for dateKey, ranks := range r.buffer {
+			for rank, data := range ranks {
+				if len(data) > 0 {
+					_ = r.flushLocked(dateKey, rank)
+				}
 			}
 		}
 		r.mu.Unlock()
 	}
 }
 
-func (r *BattleLogRepository) flushLocked(rank int) (err error) {
-	rows := len(r.buffer[rank])
+func (r *BattleLogRepository) flushLocked(dateKey string, rank int) (err error) {
+	rows := len(r.buffer[dateKey][rank])
 	if rows == 0 {
 		return
 	}
@@ -107,6 +117,7 @@ func (r *BattleLogRepository) flushLocked(rank int) (err error) {
 
 	timestampBuilder := array.NewTimestampBuilder(pool, arrow.FixedWidthTypes.Timestamp_s.(*arrow.TimestampType))
 	mapNameBuilder := array.NewStringBuilder(pool)
+	modeBuilder := array.NewStringBuilder(pool)
 	rankBuilder := array.NewInt64Builder(pool)
 	drawFlagBuilder := array.NewBooleanBuilder(pool)
 
@@ -116,9 +127,10 @@ func (r *BattleLogRepository) flushLocked(rank int) (err error) {
 	loseTeamBuilder := array.NewListBuilder(pool, arrow.PrimitiveTypes.Int64)
 	loseTeamMemberBuilder := loseTeamBuilder.ValueBuilder().(*array.Int64Builder)
 
-	for _, battle := range r.buffer[rank] {
+	for _, battle := range r.buffer[dateKey][rank] {
 		timestampBuilder.Append(arrow.Timestamp(battle.Timestamp.Unix()))
 		mapNameBuilder.Append(battle.MapName)
+		modeBuilder.Append(battle.Mode)
 		rankBuilder.Append(int64(battle.Rank))
 		drawFlagBuilder.Append(battle.Draw)
 
@@ -137,6 +149,8 @@ func (r *BattleLogRepository) flushLocked(rank int) (err error) {
 	defer timestampArray.Release()
 	mapNameArray := mapNameBuilder.NewArray()
 	defer mapNameArray.Release()
+	modeArray := modeBuilder.NewArray()
+	defer modeArray.Release()
 	rankArray := rankBuilder.NewArray()
 	defer rankArray.Release()
 	drawFlagArray := drawFlagBuilder.NewArray()
@@ -151,6 +165,7 @@ func (r *BattleLogRepository) flushLocked(rank int) (err error) {
 		[]arrow.Array{
 			timestampArray,
 			mapNameArray,
+			modeArray,
 			rankArray,
 			winTeamArray,
 			loseTeamArray,
@@ -160,14 +175,14 @@ func (r *BattleLogRepository) flushLocked(rank int) (err error) {
 	)
 	defer batch.Release()
 
-	rankDir := filepath.Join(r.outDir, strconv.Itoa(rank))
-	if err := utils.EnsureDir(filepath.Join(rankDir, "placeholder.parquet")); err != nil {
+	dateRankDir := filepath.Join(r.outDir, dateKey, strconv.Itoa(rank))
+	if err := utils.EnsureDir(filepath.Join(dateRankDir, "placeholder.parquet")); err != nil {
 		return err
 	}
 
 	t := time.Now().UTC().UnixNano()
 	filename := fmt.Sprintf("batch-%d.parquet", t)
-	path := filepath.Join(rankDir, filename)
+	path := filepath.Join(dateRankDir, filename)
 	f, err := os.Create(path)
 	if err != nil {
 		return err
@@ -189,6 +204,13 @@ func (r *BattleLogRepository) flushLocked(rank int) (err error) {
 		return err
 	}
 
-	r.buffer[rank] = r.buffer[rank][:0]
+	logrus.WithFields(logrus.Fields{
+		"date": dateKey,
+		"rank": rank,
+		"rows": rows,
+		"path": path,
+	}).Info("flushed-battle-log-batch")
+
+	r.buffer[dateKey][rank] = r.buffer[dateKey][rank][:0]
 	return nil
 }

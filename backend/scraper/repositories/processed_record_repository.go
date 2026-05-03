@@ -4,8 +4,8 @@ import (
 	env "BrawlPicks/scraper/config"
 	"BrawlPicks/scraper/services/upstream"
 	"context"
-	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -21,8 +21,10 @@ type ProcessedRecordRepositoryInterface interface {
 }
 
 type ProcessedRecordRepository struct {
-	client *redis.Client
-	e      *env.Env
+	client    *redis.Client
+	e         *env.Env
+	mu        sync.Mutex
+	fillQueue bool
 }
 
 func NewProcessedRecordRepository(client *redis.Client, e *env.Env) *ProcessedRecordRepository {
@@ -52,14 +54,13 @@ func (r *ProcessedRecordRepository) AddPlayersToQueue(ctx context.Context, tags 
 		return err
 	}
 
-	capacityTrigger := queueLimit * int64(r.e.Crawler.Queue.CapacityTrigger)
-	if currentLength > capacityTrigger {
-		logrus.WithFields(logrus.Fields{
-			"queue_length":     currentLength,
-			"queue_limit":      queueLimit,
-			"capacity_trigger": capacityTrigger,
-			"dropped":          len(tags),
-		}).Info("skip-enqueue")
+	capacityTrigger := queueLimit * int64(r.e.Redis.CapacityTrigger) / 100
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if currentLength <= capacityTrigger {
+		r.fillQueue = true
+	}
+	if !r.fillQueue {
 		return nil
 	}
 
@@ -70,16 +71,16 @@ func (r *ProcessedRecordRepository) AddPlayersToQueue(ctx context.Context, tags 
 	}
 
 	if length > queueLimit {
-		logrus.Info(fmt.Sprintf("Trimmed queue from %d to %d.", length, r.e.Redis.PlayerQueueLimit))
+		logrus.WithFields(logrus.Fields{
+			"queue_limit": r.e.Redis.PlayerQueueLimit,
+			"trimmed":     length - queueLimit,
+		}).Info("queue-truncated-to-limit")
 		cmd := r.client.LTrim(ctx, queueKey, 0, queueLimit-1)
 		if err = cmd.Err(); err != nil {
 			return
 		}
+		r.fillQueue = false
 	}
-	logrus.WithFields(logrus.Fields{
-		"added":        len(tags),
-		"queue_length": length,
-	}).Info("players-enqueued")
 	return nil
 }
 

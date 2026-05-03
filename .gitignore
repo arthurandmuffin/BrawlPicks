@@ -4,4 +4,7 @@ processed/
 *.txt
 .DS_Store
 .gocache
-data/
+*.parquet
+synergy/
+__pycache__
+artifacts/

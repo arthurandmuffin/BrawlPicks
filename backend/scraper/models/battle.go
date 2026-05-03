@@ -7,6 +7,7 @@ import (
 type Battle struct {
 	Timestamp time.Time
 	MapName   string
+	Mode      string
 	Rank      int
 	Draw      bool
 	TeamW     []int

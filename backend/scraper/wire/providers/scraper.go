@@ -15,14 +15,15 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-var CrawlerSet = wire.NewSet(
+var ScraperSet = wire.NewSet(
 	ctx.GetGracefulShutdownCtx,
 	NewHttpClient,
 	NewRedisClient,
 	repositories.NewProcessedRecordRepository,
 	NewBattleLogRepository,
 	NewSynergyCounterRepository,
-	NewCrawlerService,
+	services.NewMonitorService,
+	NewScraperService,
 	NewScraperApp,
 )
 
@@ -71,22 +72,23 @@ func NewSynergyCounterRepository(e *env.Env) (*repositories.SynergyCounterReposi
 	)
 }
 
-func NewCrawlerService(
+func NewScraperService(
 	e *env.Env,
 	client *ahttp.Client,
+	monitor *services.MonitorService,
 	rProcessed *repositories.ProcessedRecordRepository,
 	rBattleLog *repositories.BattleLogRepository,
 	rSynergy *repositories.SynergyCounterRepository,
-) *services.MatchDataCrawlerService {
-	return services.NewMatchDataCrawlerService(e, client, rProcessed, rBattleLog, rSynergy)
+) *services.ScraperService {
+	return services.NewScraperService(e, client, monitor, rProcessed, rBattleLog, rSynergy)
 }
 
 func NewScraperApp(
 	ctx context.Context,
-	crawler *services.MatchDataCrawlerService,
+	scraper *services.ScraperService,
 	battleLog *repositories.BattleLogRepository,
 	synergy *repositories.SynergyCounterRepository,
 	redisClient *redis.Client,
 ) *app.App {
-	return app.NewApp(ctx, crawler, battleLog, synergy, redisClient)
+	return app.NewApp(ctx, scraper, battleLog, synergy, redisClient)
 }

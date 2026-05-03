@@ -7,10 +7,11 @@
 package wire
 
 import (
-	"BrawlPicks/webserver/app"
 	"BrawlPicks/internal/ctx"
+	"BrawlPicks/webserver/app"
 	env "BrawlPicks/webserver/config"
 	"BrawlPicks/webserver/controllers"
+	"BrawlPicks/webserver/inference"
 	"BrawlPicks/webserver/repositories"
 	"BrawlPicks/webserver/routes"
 	"BrawlPicks/webserver/scheduler"
@@ -28,8 +29,13 @@ func InitializeApp(envEnv *env.Env) (*app.App, error) {
 	mapRankingDataService := services.NewMapRankingDataService(envEnv, client, mapRankingRepository)
 	mapRankingController := controllers.NewMapRankingController(mapRankingDataService)
 	mapRankingRoute := routes.NewMapRankingRoute(mapRankingController)
+	httpClient := providers.NewInferenceHTTPClient(envEnv)
+	inferenceClient := inference.NewClient(envEnv, httpClient)
+	recommendationService := services.NewRecommendationService(inferenceClient)
+	recommendationController := controllers.NewRecommendationController(recommendationService)
+	recommendationRoute := routes.NewRecommendationRoute(recommendationController)
 	mapRankingScheduler := scheduler.NewMapRankingScheduler(mapRankingDataService)
-	api := providers.NewApi(envEnv, context, swaggerRoute, mapRankingRoute, mapRankingScheduler)
+	api := providers.NewApi(envEnv, context, swaggerRoute, mapRankingRoute, recommendationRoute, mapRankingScheduler)
 	appApp := app.NewApp(api)
 	return appApp, nil
 }

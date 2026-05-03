@@ -13,7 +13,8 @@ import (
 type Env struct {
 	Redis   *Redis   `yaml:"redis"`
 	Brawl   *Brawl   `yaml:"brawl"`
-	Crawler *Crawler `yaml:"crawler"`
+	Scraper *Scraper `yaml:"scraper"`
+	Monitor *Monitor `yaml:"monitor"`
 	Storage *Storage `yaml:"storage"`
 }
 
@@ -21,6 +22,7 @@ type Redis struct {
 	Credentials      *RedisCredentials `yaml:"credentials"`
 	PlayerQueueName  string            `yaml:"queueName"`
 	PlayerQueueLimit int64             `yaml:"queueLimit"`
+	CapacityTrigger  int               `yaml:"capacityTrigger"`
 	PlayerBFPrefix   string            `yaml:"playerBFPrefix"`
 	PlayerBFCapacity int64             `yaml:"playerBFCapacity"`
 	PlayerBFTTL      int64             `yaml:"playerBFTTL"`
@@ -42,34 +44,42 @@ type Brawl struct {
 	Key                string `yaml:"key"`
 }
 
-type Crawler struct {
-	Seeding   *CrawlerSeeding   `yaml:"seeding"`
-	RateLimit *CrawlerRateLimit `yaml:"rateLimit"`
-	Workers   *CrawlerWorkers   `yaml:"workers"`
-	Queue     *CrawlerQueue     `yaml:"queue"`
+type Scraper struct {
+	Seeding   *ScraperSeeding   `yaml:"seeding"`
+	Processing *ScraperProcessing `yaml:"processing"`
+	RateLimit *ScraperRateLimit `yaml:"rateLimit"`
+	Workers   *ScraperWorkers   `yaml:"workers"`
+	Queue     *ScraperQueue     `yaml:"queue"`
 }
 
-type CrawlerSeeding struct {
+type ScraperSeeding struct {
 	Threshold       int64 `yaml:"threshold"`
 	CooldownSeconds int   `yaml:"cooldownSeconds"`
 }
 
-type CrawlerRateLimit struct {
+type ScraperProcessing struct {
+	MaxBattleAgeDays int `yaml:"maxBattleAgeDays"`
+}
+
+type ScraperRateLimit struct {
 	QPS   int `yaml:"qps"`
 	Burst int `yaml:"burst"`
 }
 
-type CrawlerWorkers struct {
+type ScraperWorkers struct {
 	IO  int `yaml:"io"`
 	CPU int `yaml:"cpu"`
 }
 
-type CrawlerQueue struct {
-	Batch           int `yaml:"batch"`
-	Low             int `yaml:"low"`
-	High            int `yaml:"high"`
-	ChannelSize     int `yaml:"channelSize"`
-	CapacityTrigger int `yaml:"capacityTrigger"`
+type ScraperQueue struct {
+	Batch       int `yaml:"batch"`
+	Low         int `yaml:"low"`
+	High        int `yaml:"high"`
+	ChannelSize int `yaml:"channelSize"`
+}
+
+type Monitor struct {
+	HeartbeatInterval int `yaml:"heartbeatInterval"`
 }
 
 type Storage struct {

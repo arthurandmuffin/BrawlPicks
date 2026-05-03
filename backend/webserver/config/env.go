@@ -15,6 +15,7 @@ type Env struct {
 	Data       *Data       `yaml:"data"`
 	Upstream   *Upstream   `yaml:"upstream"`
 	MapRanking *MapRanking `yaml:"mapRanking"`
+	Inference  *Inference  `yaml:"inference"`
 }
 
 type Api struct {
@@ -43,6 +44,12 @@ type MatchData struct {
 
 type MapRanking struct {
 	WinRateWeight float64 `yaml:"winRateWeight"`
+}
+
+type Inference struct {
+	BaseURL        string `yaml:"baseURL"`
+	RecommendPath  string `yaml:"recommendPath"`
+	TimeoutSeconds int    `yaml:"timeoutSeconds"`
 }
 
 func Get(path string) (env *Env, err error) {
