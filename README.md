@@ -2,7 +2,7 @@
 
 Simple draft-assistant passion project for Brawl Stars.
 
-![System Diagram](/Users/arthurhuang/BrawlPicks/BrawlPicks/assets/system_diagram.png)
+![System Diagram](assets/system_diagram.png)
 
 ## What It Is
 
